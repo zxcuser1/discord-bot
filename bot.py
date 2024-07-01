@@ -117,7 +117,7 @@ async def play_next(ctx):
                 os.remove(filename['title']+'.mp3')
                 await play_next(ctx)
         else:
-            print("Бот не находится в голосовом канале.")
+            await ctx.send("Бот не находится в голосовом канале.")
 
 
 @bot.command(name='skip', help='Пропускмет текущий трек')
