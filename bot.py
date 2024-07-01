@@ -30,7 +30,7 @@ ytdl = youtube_dl.YoutubeDL(YDL_OPTIONS)
 
 
 intents = discord.Intents().all()
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='/', intents=intents)
 
 
 queues = {}
@@ -43,8 +43,10 @@ def get_queue(guild_id):
 
 
 def download_audio(url):
+    st = url.split(' ')
+    url1 = st[-1]
     try:
-        info = ytdl.extract_info(url, download=True)
+        info = ytdl.extract_info(url1, download=True)
         if 'formats' in info and len(info['url']) > 0:
             return info
         else:
@@ -64,17 +66,20 @@ async def join(ctx):
         await ctx.send('Вы должны быть в голосовом канале, чтобы использовать эту команду.')
 
 
-@bot.command(name='play')
+@bot.command(name='play', help='Проигрывает музыку')
 async def play(ctx, url):
+    if not ctx.message.author.voice:
+        await ctx.send("Вы должны быть в голосовом канале, чтобы использовать эту команду.")
+        return
+
     queue = get_queue(ctx.guild.id)
     queue.append(url)
     channel = ctx.message.author.voice.channel
     voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    if not ctx.message.author.voice:
-        await ctx.send("Вы должны быть в голосовом канале, чтобы использовать эту команду.")
-        return
+
     if not voice_client:
         await channel.connect()
+        ctx.guild.voice_client.resume()
         if len(queue) == 1:
             await play_next(ctx)
 
@@ -87,6 +92,7 @@ async def play_next(ctx):
         filename = download_audio(url)
         if filename is None:
             queue.pop(0)
+            await ctx.send("Не верый формат URL.")
             await play_next(ctx)
             return
 
@@ -114,14 +120,40 @@ async def play_next(ctx):
             print("Бот не находится в голосовом канале.")
 
 
-@bot.command(name='skip')
+@bot.command(name='skip', help='Пропускмет текущий трек')
 async def skip(ctx):
+    if ctx.voice_client:
+        queue = get_queue(ctx.guild.id)
+        if len(queue) == 0:
+            await ctx.send('Нет трека, который можно пропустить.')
+        else:
+            if len(queue) > 1:
+                ctx.guild.voice_client.stop()
+                ctx.guild.voice_client.resume()
+            else:
+                ctx.guild.voice_client.stop()
+
+    else:
+        await ctx.send('Бот не находится в голосовом канале.')
+
+
+@bot.command(name='pause', help='Останавливает текущий трек')
+async def pause(ctx):
     voice_client = ctx.guild.voice_client
     if voice_client.is_playing():
-        voice_client.stop()
+        voice_client.pause()
 
 
-@bot.command(name='stop')
+@bot.command(name='resume', help='Возобновляет воспроизведение текущего трека')
+async def resume(ctx):
+    voice_client = ctx.guild.voice_client
+    if voice_client.is_paused():
+        voice_client.resume()
+    else:
+        await ctx.send('В данный момент нет приостановленного трека.')
+
+
+@bot.command(name='stop', help='Останавливает бота')
 async def stop(ctx):
     if ctx.voice_client:
         queue = get_queue(ctx.guild.id)
@@ -131,7 +163,7 @@ async def stop(ctx):
         await ctx.send('Бот не находится в голосовом канале.')
 
 
-@bot.command(name='clear')
+@bot.command(name='clear', help='Очищает очередь треков')
 async def clear(ctx):
     queue = get_queue(ctx.guild.id)
     queue.clear()
